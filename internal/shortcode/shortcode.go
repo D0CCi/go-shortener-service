@@ -12,19 +12,19 @@ const (
 
 // Generate returns a random code of Length characters without modulo bias.
 func Generate() string {
-	link := make([]byte, 0, Length)
+	code := make([]byte, 0, Length)
 	buf := make([]byte, 16)
 	threshold := 256 - 256%len(alphabet) // bytes >= threshold are skipped to avoid modulo bias
-	for len(link) < Length {
+	for len(code) < Length {
 		_, _ = rand.Read(buf) // never returns an error since Go 1.24
 		for _, b := range buf {
 			if int(b) < threshold {
-				link = append(link, alphabet[int(b)%len(alphabet)])
+				code = append(code, alphabet[int(b)%len(alphabet)])
 			}
-			if len(link) == Length {
+			if len(code) == Length {
 				break
 			}
 		}
 	}
-	return string(link)
+	return string(code)
 }
