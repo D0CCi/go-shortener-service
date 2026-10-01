@@ -1,0 +1,15 @@
+# Build output
+/bin/
+*.exe
+
+# Test & coverage artifacts
+*.test
+coverage.out
+coverage.html
+
+# Local environment (may contain secrets)
+.env
+
+# IDE
+.idea/
+.vscode/
