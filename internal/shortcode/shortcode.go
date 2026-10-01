@@ -1,0 +1,30 @@
+// Package shortcode generates random short codes for links.
+package shortcode
+
+import (
+	"crypto/rand"
+)
+
+const (
+	alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
+	Length   = 10 // Length of every generated code.
+)
+
+// Generate returns a random code of Length characters without modulo bias.
+func Generate() string {
+	link := make([]byte, 0, Length)
+	buf := make([]byte, 16)
+	threshold := 256 - 256%len(alphabet) // bytes >= threshold are skipped to avoid modulo bias
+	for len(link) < Length {
+		_, _ = rand.Read(buf) // never returns an error since Go 1.24
+		for _, b := range buf {
+			if int(b) < threshold {
+				link = append(link, alphabet[int(b)%len(alphabet)])
+			}
+			if len(link) == Length {
+				break
+			}
+		}
+	}
+	return string(link)
+}
