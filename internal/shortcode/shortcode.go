@@ -3,6 +3,7 @@ package shortcode
 
 import (
 	"crypto/rand"
+	"strings"
 )
 
 const (
@@ -27,4 +28,16 @@ func Generate() string {
 		}
 	}
 	return string(code)
+}
+
+func Valid(code string) bool {
+	if len(code) != Length {
+		return false
+	}
+	for _, v := range code {
+		if !strings.ContainsRune(alphabet, v) {
+			return false
+		}
+	}
+	return true
 }
