@@ -30,6 +30,7 @@ func Generate() string {
 	return string(code)
 }
 
+// Valid reports whether code has the right length and only alphabet characters.
 func Valid(code string) bool {
 	if len(code) != Length {
 		return false
