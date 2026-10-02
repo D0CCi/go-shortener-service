@@ -31,24 +31,24 @@ func New(storage Storage) *Service {
 	}
 }
 
-// Shorten returns the code for rawURL and created=true if the link is new.
-// The same url always gets the same code.
-func (s *Service) Shorten(ctx context.Context, rawURL string) (string, bool, error) {
-	link, err := normalizeURL(rawURL)
+// Shorten returns the code for rawURL, the normalized url that was stored
+// and created=true if the link is new. The same url always gets the same code.
+func (s *Service) Shorten(ctx context.Context, rawURL string) (code, link string, created bool, err error) {
+	link, err = normalizeURL(rawURL)
 	if err != nil {
-		return "", false, err
+		return "", "", false, err
 	}
 	for range maxAttempts {
-		code, created, err := s.storage.SaveURL(ctx, s.generate(), link)
+		code, created, err = s.storage.SaveURL(ctx, s.generate(), link)
 		if errors.Is(err, storage.ErrCodeExists) {
 			continue // random code collided, try another one
 		}
 		if err != nil {
-			return "", false, err
+			return "", "", false, err
 		}
-		return code, created, nil
+		return code, link, created, nil
 	}
-	return "", false, ErrInvalidGeneration
+	return "", "", false, ErrInvalidGeneration
 }
 
 // Resolve returns the url stored under code.

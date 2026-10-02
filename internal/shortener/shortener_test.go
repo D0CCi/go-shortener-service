@@ -50,13 +50,16 @@ func TestShorten_RetryOnCollision(t *testing.T) {
 	s := New(takenStorage(t))
 	s.generate = gen.next
 
-	code, created, err := s.Shorten(t.Context(), "https://b.ru")
+	code, link, created, err := s.Shorten(t.Context(), "b.ru")
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if code != "bbbbbbbbbb" || !created {
 		t.Errorf("got (%q, %v), want (%q, true)", code, created, "bbbbbbbbbb")
+	}
+	if link != "http://b.ru" {
+		t.Errorf("link = %q, want normalized %q", link, "http://b.ru")
 	}
 	if gen.calls != 2 {
 		t.Errorf("generate called %d times, want 2", gen.calls)
@@ -68,7 +71,7 @@ func TestShorten_GiveUp(t *testing.T) {
 	s := New(takenStorage(t))
 	s.generate = gen.next
 
-	_, _, err := s.Shorten(t.Context(), "https://b.ru")
+	_, _, _, err := s.Shorten(t.Context(), "https://b.ru")
 
 	if !errors.Is(err, ErrInvalidGeneration) {
 		t.Fatalf("err = %v, want ErrInvalidGeneration", err)
@@ -94,11 +97,11 @@ func TestShorten_SameURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := New(memory.New())
 
-			code1, created1, err := s.Shorten(t.Context(), tt.first)
+			code1, _, created1, err := s.Shorten(t.Context(), tt.first)
 			if err != nil {
 				t.Fatalf("first Shorten: %v", err)
 			}
-			code2, created2, err := s.Shorten(t.Context(), tt.second)
+			code2, _, created2, err := s.Shorten(t.Context(), tt.second)
 			if err != nil {
 				t.Fatalf("second Shorten: %v", err)
 			}
@@ -118,7 +121,7 @@ func TestShorten_InvalidURL(t *testing.T) {
 	s := New(memory.New())
 	s.generate = gen.next
 
-	_, _, err := s.Shorten(t.Context(), "localhost")
+	_, _, _, err := s.Shorten(t.Context(), "localhost")
 
 	if !errors.Is(err, ErrInvalidURL) {
 		t.Fatalf("err = %v, want ErrInvalidURL", err)
@@ -130,7 +133,7 @@ func TestShorten_InvalidURL(t *testing.T) {
 
 func TestResolve(t *testing.T) {
 	s := New(memory.New())
-	code, _, err := s.Shorten(t.Context(), "https://a.ru/x")
+	code, _, _, err := s.Shorten(t.Context(), "https://a.ru/x")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +177,7 @@ func TestResolve_Errors(t *testing.T) {
 func TestStorageErrorPassedThrough(t *testing.T) {
 	s := New(brokenStorage{})
 
-	if _, _, err := s.Shorten(t.Context(), "https://a.ru"); !errors.Is(err, errDBDown) {
+	if _, _, _, err := s.Shorten(t.Context(), "https://a.ru"); !errors.Is(err, errDBDown) {
 		t.Errorf("Shorten err = %v, want errDBDown", err)
 	}
 	if _, err := s.Resolve(t.Context(), "aaaaaaaaaa"); !errors.Is(err, errDBDown) {
