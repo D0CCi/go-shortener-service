@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/D0CCi/go-shortener-service/internal/shortener"
@@ -23,6 +24,7 @@ type Shortener interface {
 type handler struct {
 	svc     Shortener
 	baseURL string // prefix for short links, e.g. "http://localhost:8080"
+	log     *slog.Logger
 }
 
 type shortenRequest struct {
@@ -40,10 +42,11 @@ type errorResponse struct {
 }
 
 // New returns an http.Handler with the API routes.
-func New(svc Shortener, baseURL string) http.Handler {
+func New(svc Shortener, baseURL string, log *slog.Logger) http.Handler {
 	h := &handler{
 		svc:     svc,
 		baseURL: baseURL,
+		log:     log,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /{$}", h.shorten) // {$} matches only "/", not "/anything"
@@ -61,7 +64,7 @@ func (h *handler) shorten(w http.ResponseWriter, r *http.Request) {
 
 	code, link, created, err := h.svc.Shorten(r.Context(), req.URL)
 	if err != nil {
-		writeServiceError(w, err)
+		h.writeServiceError(w, r, err)
 		return
 	}
 
@@ -76,7 +79,7 @@ func (h *handler) resolve(w http.ResponseWriter, r *http.Request) {
 	code := r.PathValue("code")
 	link, err := h.svc.Resolve(r.Context(), code)
 	if err != nil {
-		writeServiceError(w, err)
+		h.writeServiceError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, linkResponse{URL: link, ShortURL: h.shortURL(code)})
@@ -99,13 +102,14 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 
 // writeServiceError maps service errors to HTTP statuses.
 // Unknown errors become 500 without details, so internals do not leak to clients.
-func writeServiceError(w http.ResponseWriter, err error) {
+func (h *handler) writeServiceError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, shortener.ErrInvalidURL), errors.Is(err, shortener.ErrInvalidCode):
 		writeError(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, storage.ErrNotFound):
 		writeError(w, http.StatusNotFound, "not found")
 	default:
+		h.log.Error("request failed", "method", r.Method, "path", r.URL.Path, "err", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
 	}
 }

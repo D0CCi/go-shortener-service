@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -21,7 +21,7 @@ const (
 	readTimeout       = 10 * time.Second // whole request including body
 	writeTimeout      = 10 * time.Second // whole response
 	idleTimeout       = 60 * time.Second // keep-alive connection with no requests
-	shutdownTimeout   = 5 * time.Second
+	shutdownTimeout   = 5 * time.Second  // must be below docker stop's 10 s grace period
 )
 
 func main() {
@@ -30,16 +30,19 @@ func main() {
 	storageType := flag.String("storage", "memory", "storage backend: memory or postgres")
 	flag.Parse()
 
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
 	var st shortener.Storage
 	switch *storageType {
 	case "memory":
 		st = memory.New()
 	default:
-		log.Fatalf("unknown storage %q", *storageType)
+		logger.Error("unknown storage", "storage", *storageType)
+		os.Exit(1)
 	}
 
 	svc := shortener.New(st)
-	h := httpapi.New(svc, *baseURL)
+	h := httpapi.New(svc, *baseURL, logger)
 
 	srv := &http.Server{
 		Addr:              *addr,
@@ -55,18 +58,19 @@ func main() {
 
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatal(err)
+			logger.Error("server failed", "err", err)
+			os.Exit(1)
 		}
 	}()
-	log.Printf("listening on %s", *addr)
+	logger.Info("listening", "addr", *addr)
 
 	<-ctx.Done() // blocks until Ctrl+C or docker stop
-	log.Println("shutting down")
+	logger.Info("shutting down")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Printf("shutdown: %v", err)
+		logger.Error("shutdown failed", "err", err)
 	}
-	log.Println("stopped")
+	logger.Info("stopped")
 }

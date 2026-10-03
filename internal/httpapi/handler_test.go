@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -40,7 +41,7 @@ func (f *fakeService) Resolve(_ context.Context, code string) (string, error) {
 func do(svc Shortener, method, path, body string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	rec := httptest.NewRecorder()
-	New(svc, testBaseURL).ServeHTTP(rec, req)
+	New(svc, testBaseURL, slog.New(slog.DiscardHandler)).ServeHTTP(rec, req)
 	return rec
 }
 
