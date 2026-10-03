@@ -56,7 +56,7 @@ func TestAPI(t *testing.T) {
 		path       string
 		body       string
 		wantStatus int
-		wantBody   string // empty means not checked (mux plain-text replies)
+		wantBody   string
 	}{
 		// POST /
 		{name: "shorten new", svc: fakeService{code: "aaaaaaaaaa", link: "http://a.ru", created: true},
@@ -85,10 +85,14 @@ func TestAPI(t *testing.T) {
 			method: "GET", path: "/aaaaaaaaaa", wantStatus: http.StatusInternalServerError, wantBody: `{"error":"internal error"}`},
 
 		// routing
-		{name: "post with path", method: "POST", path: "/aaaaaaaaaa", wantStatus: http.StatusMethodNotAllowed},
-		{name: "delete", method: "DELETE", path: "/aaaaaaaaaa", wantStatus: http.StatusMethodNotAllowed},
-		{name: "get root", method: "GET", path: "/", wantStatus: http.StatusMethodNotAllowed},
-		{name: "nested path", method: "GET", path: "/a/b", wantStatus: http.StatusNotFound},
+		{name: "post with path", method: "POST", path: "/aaaaaaaaaa",
+			wantStatus: http.StatusMethodNotAllowed, wantBody: `{"error":"method not allowed"}`},
+		{name: "delete", method: "DELETE", path: "/aaaaaaaaaa",
+			wantStatus: http.StatusMethodNotAllowed, wantBody: `{"error":"method not allowed"}`},
+		{name: "get root", method: "GET", path: "/",
+			wantStatus: http.StatusMethodNotAllowed, wantBody: `{"error":"method not allowed"}`},
+		{name: "nested path", method: "GET", path: "/a/b",
+			wantStatus: http.StatusNotFound, wantBody: `{"error":"not found"}`},
 	}
 
 	for _, tt := range tests {
@@ -98,9 +102,6 @@ func TestAPI(t *testing.T) {
 			if rec.Code != tt.wantStatus {
 				t.Errorf("status = %d, want %d", rec.Code, tt.wantStatus)
 			}
-			if tt.wantBody == "" {
-				return
-			}
 			if got := strings.TrimSpace(rec.Body.String()); got != tt.wantBody {
 				t.Errorf("body = %s, want %s", got, tt.wantBody)
 			}
@@ -108,6 +109,15 @@ func TestAPI(t *testing.T) {
 				t.Errorf("Content-Type = %q, want application/json", ct)
 			}
 		})
+	}
+}
+
+// A 405 must still tell the client which methods are allowed.
+func TestAPI_MethodNotAllowedKeepsAllow(t *testing.T) {
+	rec := do(&fakeService{}, "DELETE", "/aaaaaaaaaa", "")
+
+	if allow := rec.Header().Get("Allow"); !strings.Contains(allow, "GET") {
+		t.Errorf("Allow = %q, want it to contain GET", allow)
 	}
 }
 

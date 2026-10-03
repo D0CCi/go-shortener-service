@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/D0CCi/go-shortener-service/internal/shortener"
 	"github.com/D0CCi/go-shortener-service/internal/storage"
@@ -51,8 +52,36 @@ func New(svc Shortener, baseURL string, log *slog.Logger) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /{$}", h.shorten) // {$} matches only "/", not "/anything"
 	mux.HandleFunc("GET /{code}", h.resolve)
-	return mux
+	return jsonFallback{mux: mux}
 }
+
+// jsonFallback makes the mux's own 404 and 405 replies JSON, like every other error.
+type jsonFallback struct {
+	mux *http.ServeMux
+}
+
+func (f jsonFallback) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h, pattern := f.mux.Handler(r)
+	if pattern != "" {
+		f.mux.ServeHTTP(w, r) // a route matched; the mux also fills r.PathValue
+		return
+	}
+	// No route: the mux decides between 404 and 405 and sets the Allow header,
+	// we keep its status and replace the plain-text body.
+	rec := &statusRecorder{header: w.Header()}
+	h.ServeHTTP(rec, r)
+	writeError(w, rec.status, strings.ToLower(http.StatusText(rec.status)))
+}
+
+// statusRecorder remembers the status and drops the body.
+type statusRecorder struct {
+	header http.Header
+	status int
+}
+
+func (s *statusRecorder) Header() http.Header         { return s.header }
+func (s *statusRecorder) WriteHeader(status int)      { s.status = status }
+func (s *statusRecorder) Write(b []byte) (int, error) { return len(b), nil }
 
 func (h *handler) shorten(w http.ResponseWriter, r *http.Request) {
 	req := shortenRequest{}
