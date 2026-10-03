@@ -14,6 +14,7 @@ import (
 	"github.com/D0CCi/go-shortener-service/internal/httpapi"
 	"github.com/D0CCi/go-shortener-service/internal/shortener"
 	"github.com/D0CCi/go-shortener-service/internal/storage/memory"
+	"github.com/D0CCi/go-shortener-service/internal/storage/postgres"
 )
 
 const (
@@ -22,6 +23,7 @@ const (
 	writeTimeout      = 10 * time.Second // whole response
 	idleTimeout       = 60 * time.Second // keep-alive connection with no requests
 	shutdownTimeout   = 5 * time.Second  // must be below docker stop's 10 s grace period
+	connectTimeout    = 5 * time.Second  // fail fast if the database is unreachable at startup
 )
 
 func main() {
@@ -36,6 +38,22 @@ func main() {
 	switch *storageType {
 	case "memory":
 		st = memory.New()
+	case "postgres":
+		// The DSN contains a password, so it comes from the environment, not a flag visible in ps.
+		dsn := os.Getenv("DATABASE_URL")
+		if dsn == "" {
+			logger.Error("DATABASE_URL is not set")
+			os.Exit(1)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), connectTimeout)
+		pg, err := postgres.New(ctx, dsn)
+		cancel()
+		if err != nil {
+			logger.Error("connect to postgres", "err", err)
+			os.Exit(1)
+		}
+		defer pg.Close() // runs when main returns, after srv.Shutdown
+		st = pg
 	default:
 		logger.Error("unknown storage", "storage", *storageType)
 		os.Exit(1)
