@@ -1,0 +1,31 @@
+name: go-shortener-service
+
+services:
+  app:
+    build: .
+    command: ["-storage=postgres", "-base-url=http://localhost:8080"]
+    environment:
+      DATABASE_URL: postgres://shortener:shortener@postgres:5432/shortener?sslmode=disable
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy # wait until the database accepts connections, not just starts
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: shortener
+      POSTGRES_PASSWORD: shortener
+      POSTGRES_DB: shortener
+    volumes:
+      - pgdata:/var/lib/postgresql # links survive docker compose down
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "shortener"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+volumes:
+  pgdata:
