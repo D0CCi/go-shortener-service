@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/D0CCi/go-shortener-service/internal/storage"
+	"github.com/D0CCi/go-shortener-service/internal/storage/storagetest"
 )
 
 func TestSaveURL_New(t *testing.T) {
@@ -121,4 +122,8 @@ func TestSaveURL_ConcurrentSameURL(t *testing.T) {
 			t.Fatalf("code position %d = %v want %v", k, v, codes[0])
 		}
 	}
+}
+
+func TestContract(t *testing.T) {
+	storagetest.Run(t, func(*testing.T) storagetest.Storage { return New() })
 }
